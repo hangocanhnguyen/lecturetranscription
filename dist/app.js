@@ -1,15 +1,15 @@
-import {outline} from './outline.mjs';
+import {createDocx} from './docx.mjs';
 const $=id=>document.getElementById(id);
 for(let i=0;i<52;i++){const bar=document.createElement('i');bar.style.height=(8+Math.abs(Math.sin(i*.38)*Math.cos(i*.15))*(35+85*Math.sin(i*Math.PI/52)))+'px';$('wave').append(bar)}
 const stamp=t=>[Math.floor(t/60),Math.floor(t%60)].map(x=>String(x).padStart(2,'0')).join(':');
-let media=null,url='',rec=null,timer,worker=null,busy=false,job=0,parts=[],notes=[];
+let media=null,url='',rec=null,timer,worker=null,busy=false,job=0;
 function lock(locked){busy=locked;for(const id of ['micMode','fileMode','file','record','lang','speed'])$(id).disabled=locked;$('generate').disabled=locked||!media}
 function mode(mic){$('micMode').setAttribute('aria-pressed',mic);$('fileMode').setAttribute('aria-pressed',!mic);$('micBox').hidden=!mic;$('fileBox').hidden=mic}
 $('micMode').onclick=()=>mode(true);$('fileMode').onclick=()=>mode(false);
 function select(blob,name,recorded){
  if(url)URL.revokeObjectURL(url);
  media=blob;url=URL.createObjectURL(blob);$('audio').src=url;$('filename').textContent=name;$('source').hidden=false;
- $('backup').href=url;$('backup').download=name;$('backup').hidden=!recorded;$('status').textContent='';$('results').hidden=true;parts=[];notes=[];lock(false);
+ $('backup').href=url;$('backup').download=name;$('backup').hidden=!recorded;$('status').textContent='';$('results').hidden=true;$('transcript').replaceChildren();lock(false);
 }
 $('file').onchange=e=>{const f=e.target.files[0];if(f)select(f,f.name,false)};
 $('record').onclick=async()=>{
@@ -26,16 +26,9 @@ $('record').onclick=async()=>{
 };
 function finish(terminate=false){if(terminate){worker?.terminate();worker=null;}$('cancel').hidden=true;lock(false)}
 $('cancel').onclick=()=>{job++;finish(true);$('status').textContent='Đã hủy. Bạn có thể xử lý lại file này.'};
-function element(tag,text){const e=document.createElement(tag);e.textContent=text;return e}
-function jump(t){const b=element('button',stamp(t));b.className='stamp';b.title='Nghe lại từ '+stamp(t);b.onclick=()=>{$('audio').currentTime=t;$('audio').play().catch(()=>{})};return b}
-function display(){
- notes=outline(parts);$('notes').replaceChildren();$('transcript').replaceChildren();
- for(const n of notes){const a=document.createElement('article'),h=element('h3',n.main),ul=document.createElement('ul');h.prepend(jump(n.time));for(const d of n.details)ul.append(element('li',d));a.append(h,ul);$('notes').append(a)}
- for(const p of parts){const line=element('p',p.text);line.prepend(jump(p.time));$('transcript').append(line)}
- $('results').hidden=false;
-}
 $('generate').onclick=async()=>{
  if(!media||busy)return;
+ $('results').hidden=true;
  const id=++job;lock(true);$('cancel').hidden=false;$('status').textContent='Đang đọc âm thanh…';
  let context;
  try{
@@ -45,10 +38,37 @@ $('generate').onclick=async()=>{
  if(!samples.some(v=>Math.abs(v)>.0001))throw Error('File không có tín hiệu âm thanh.');
  worker ??= new Worker(new URL('./asr.js',import.meta.url),{type:'module'});$('status').textContent='Đang khởi động Whisper. Lần đầu có thể mất vài phút…';
  worker.onerror=e=>{if(id!==job)return;$('status').textContent='Không tải được bộ xử lý. '+e.message;finish(true)};
- worker.onmessage=({data})=>{if(id!==job)return;if(data.status){$('status').textContent=data.status;return}finish(Boolean(data.error));if(data.error){$('status').textContent=data.error;return}parts=data.parts;if(!parts.length){$('status').textContent='Không nhận diện được lời nói.';return}display();$('status').textContent='Đã xong · xử lý '+data.processingSeconds+' giây, chuẩn bị mô hình '+data.setupSeconds+' giây. Bấm mốc thời gian để nghe lại.'};
+ worker.onmessage = ({data}) => {
+  if (id !== job) return;
+  if (data.status) {
+   $('status').textContent = data.status;
+   return;
+  }
+  finish(Boolean(data.error));
+  if (data.error || !data.paragraphs.length) {
+   $('status').textContent = data.error || 'Không nhận diện được lời nói.';
+   return;
+  }
+  const paragraphs = data.paragraphs.map(text => {
+   const paragraph = document.createElement('p');
+   paragraph.textContent = text;
+   return paragraph;
+  });
+  $('transcript').replaceChildren(...paragraphs);
+  $('results').hidden = false;
+  $('status').textContent = 'Đã chép xong · xử lý ' + data.processingSeconds + ' giây, chuẩn bị mô hình ' + data.setupSeconds + ' giây.';
+ };
  worker.postMessage({samples,language:$('lang').value,speed:$('speed').value},[samples.buffer]);
  }catch(e){if(id===job){finish();$('status').textContent='Không đọc được âm thanh. Nếu codec không được hỗ trợ, hãy thử MP3 hoặc WAV. '+e.message}}
  finally{if(context)await context.close().catch(()=>{})}
 };
-$('save').onclick=()=>{const name=$('filename').textContent;const md=['# '+name,'','## Dàn ý','',...notes.flatMap(n=>['### '+stamp(n.time)+' · '+n.main,...n.details.map(d=>'- '+d),'']),'## Transcript','',...parts.map(p=>'['+stamp(p.time)+'] '+p.text)].join('\n');const link=document.createElement('a');const u=URL.createObjectURL(new Blob([md],{type:'text/markdown;charset=utf-8'}));link.href=u;link.download=name.replace(/\.[^.]+$/,'')+'.md';link.click();setTimeout(()=>URL.revokeObjectURL(u),1000)};
+$('save').onclick = () => {
+ const paragraphs = Array.from($('transcript').children, paragraph => paragraph.textContent);
+ const url = URL.createObjectURL(createDocx(paragraphs));
+ const link = document.createElement('a');
+ link.href = url;
+ link.download = ($('filename').textContent.replace(/\.[^.]+$/, '') || 'Ban chep loi') + '.docx';
+ link.click();
+ setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
 window.addEventListener('beforeunload',e=>{if(busy){e.preventDefault();e.returnValue=''}});
