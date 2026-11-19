@@ -3,7 +3,7 @@ const $=id=>document.getElementById(id);
 for(let i=0;i<52;i++){const bar=document.createElement('i');bar.style.height=(8+Math.abs(Math.sin(i*.38)*Math.cos(i*.15))*(35+85*Math.sin(i*Math.PI/52)))+'px';$('wave').append(bar)}
 const stamp=t=>[Math.floor(t/60),Math.floor(t%60)].map(x=>String(x).padStart(2,'0')).join(':');
 let media=null,url='',rec=null,timer,worker=null,busy=false,job=0,parts=[],notes=[];
-function lock(locked){busy=locked;for(const id of ['micMode','fileMode','file','record','lang'])$(id).disabled=locked;$('generate').disabled=locked||!media}
+function lock(locked){busy=locked;for(const id of ['micMode','fileMode','file','record','lang','speed'])$(id).disabled=locked;$('generate').disabled=locked||!media}
 function mode(mic){$('micMode').setAttribute('aria-pressed',mic);$('fileMode').setAttribute('aria-pressed',!mic);$('micBox').hidden=!mic;$('fileBox').hidden=mic}
 $('micMode').onclick=()=>mode(true);$('fileMode').onclick=()=>mode(false);
 function select(blob,name,recorded){
@@ -24,8 +24,8 @@ $('record').onclick=async()=>{
  rec.start(1000);$('record').disabled=false;$('record').textContent='■  Dừng ghi âm';$('status').textContent='Đang ghi âm từ micro.';const start=Date.now();$('clock').textContent='00:00';timer=setInterval(()=>$('clock').textContent=stamp((Date.now()-start)/1000),300);
  }catch(e){stream?.getTracks().forEach(t=>t.stop());lock(false);$('status').textContent='Không mở được micro. Kiểm tra quyền micro trong trình duyệt hoặc chọn file. '+e.message}
 };
-function finish(){worker?.terminate();worker=null;$('cancel').hidden=true;lock(false)}
-$('cancel').onclick=()=>{job++;finish();$('status').textContent='Đã hủy. Bạn có thể xử lý lại file này.'};
+function finish(terminate=false){if(terminate){worker?.terminate();worker=null;}$('cancel').hidden=true;lock(false)}
+$('cancel').onclick=()=>{job++;finish(true);$('status').textContent='Đã hủy. Bạn có thể xử lý lại file này.'};
 function element(tag,text){const e=document.createElement(tag);e.textContent=text;return e}
 function jump(t){const b=element('button',stamp(t));b.className='stamp';b.title='Nghe lại từ '+stamp(t);b.onclick=()=>{$('audio').currentTime=t;$('audio').play().catch(()=>{})};return b}
 function display(){
@@ -43,10 +43,10 @@ $('generate').onclick=async()=>{
  if(id!==job)return;
  const samples=new Float32Array(buf.length);for(let ch=0;ch<buf.numberOfChannels;ch++){const channel=buf.getChannelData(ch);for(let i=0;i<samples.length;i++)samples[i]+=channel[i]/buf.numberOfChannels}
  if(!samples.some(v=>Math.abs(v)>.0001))throw Error('File không có tín hiệu âm thanh.');
- worker=new Worker(new URL('./asr.js',import.meta.url),{type:'module'});$('status').textContent='Đang khởi động Whisper. Lần đầu có thể mất vài phút…';
- worker.onerror=e=>{if(id!==job)return;$('status').textContent='Không tải được bộ xử lý. '+e.message;finish()};
- worker.onmessage=({data})=>{if(id!==job)return;if(data.status){$('status').textContent=data.status;return}finish();if(data.error){$('status').textContent=data.error;return}parts=data.parts;if(!parts.length){$('status').textContent='Không nhận diện được lời nói.';return}display();$('status').textContent='Đã xong. Bấm mốc thời gian để nghe lại.'};
- worker.postMessage({samples,language:$('lang').value},[samples.buffer]);
+ worker ??= new Worker(new URL('./asr.js',import.meta.url),{type:'module'});$('status').textContent='Đang khởi động Whisper. Lần đầu có thể mất vài phút…';
+ worker.onerror=e=>{if(id!==job)return;$('status').textContent='Không tải được bộ xử lý. '+e.message;finish(true)};
+ worker.onmessage=({data})=>{if(id!==job)return;if(data.status){$('status').textContent=data.status;return}finish(Boolean(data.error));if(data.error){$('status').textContent=data.error;return}parts=data.parts;if(!parts.length){$('status').textContent='Không nhận diện được lời nói.';return}display();$('status').textContent='Đã xong · xử lý '+data.processingSeconds+' giây, chuẩn bị mô hình '+data.setupSeconds+' giây. Bấm mốc thời gian để nghe lại.'};
+ worker.postMessage({samples,language:$('lang').value,speed:$('speed').value},[samples.buffer]);
  }catch(e){if(id===job){finish();$('status').textContent='Không đọc được âm thanh. Nếu codec không được hỗ trợ, hãy thử MP3 hoặc WAV. '+e.message}}
  finally{if(context)await context.close().catch(()=>{})}
 };
