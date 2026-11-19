@@ -43,6 +43,7 @@ function beginCaptions(stream) {
 }
 
 function showTranscript(lines) {
+ $('copyStatus').textContent = '';
  const paragraphs = lines.map(text => {
   const paragraph = document.createElement('p');
   paragraph.textContent = text;
@@ -118,8 +119,33 @@ $('generate').onclick=async()=>{
  }catch(e){if(id===job){finish();$('status').textContent='Không đọc được âm thanh. Nếu codec không được hỗ trợ, hãy thử MP3 hoặc WAV. '+e.message}}
  finally{if(context)await context.close().catch(()=>{})}
 };
+function transcriptParagraphs() {
+ return Array.from($('transcript').children, paragraph => paragraph.textContent);
+}
+
+$('copy').onclick = async () => {
+ const transcript = $('transcript');
+ const first = transcript.firstElementChild;
+ if (!first) return;
+ let message = 'Đã sao chép toàn bộ bản chép lời.';
+ try {
+  await navigator.clipboard.writeText(transcriptParagraphs().join('\n\n'));
+ } catch {
+  if (first !== transcript.firstElementChild || $('results').hidden) return;
+  const selection = window.getSelection();
+  selection.selectAllChildren(transcript);
+  try {
+   if (document.execCommand('copy')) selection.removeAllRanges();
+   else message = 'Đã chọn toàn bộ bản chép lời. Hãy dùng lệnh Sao chép trên thiết bị.';
+  } catch {
+   message = 'Đã chọn toàn bộ bản chép lời. Hãy dùng lệnh Sao chép trên thiết bị.';
+  }
+ }
+ if (first === transcript.firstElementChild) $('copyStatus').textContent = message;
+};
+
 $('save').onclick = () => {
- const paragraphs = Array.from($('transcript').children, paragraph => paragraph.textContent);
+ const paragraphs = transcriptParagraphs();
  const url = URL.createObjectURL(createDocx(paragraphs));
  const link = document.createElement('a');
  link.href = url;
