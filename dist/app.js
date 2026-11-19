@@ -112,6 +112,7 @@ $('generate').onclick=async()=>{
   }
   showTranscript(data.paragraphs);
   $('status').textContent = 'Đã chép xong · xử lý ' + data.processingSeconds + ' giây, chuẩn bị mô hình ' + data.setupSeconds + ' giây.';
+  if (data.uncertain) $('status').textContent += ' Chỗ ghi [không nghe rõ] cần nghe lại bản gốc.';
  };
  worker.postMessage({samples,speed:$('speed').value},[samples.buffer]);
  }catch(e){if(id===job){finish();$('status').textContent='Không đọc được âm thanh. Nếu codec không được hỗ trợ, hãy thử MP3 hoặc WAV. '+e.message}}

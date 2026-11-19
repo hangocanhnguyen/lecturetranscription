@@ -54,7 +54,7 @@ export async function startCaptions(stream, onCaption, onStatus, onFailure) {
     }
     phrase.sent = samples.length;
     pending = phrase;
-    worker.postMessage({samples, speed:'fast'}, [samples.buffer]);
+    worker.postMessage({samples, speed:'fast', live:true}, [samples.buffer]);
   }
 
   function receive(frame) {

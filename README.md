@@ -10,7 +10,7 @@ Giải nén rồi đẩy toàn bộ nội dung vào nhánh main của repo GitHu
 ## Xử lý và dữ liệu
 Không cần tài khoản hoặc API key. Trình duyệt tải Transformers.js 2.17.2 và WebAssembly từ jsDelivr, mô hình Xenova/whisper-tiny.en cho phụ đề và chế độ Nhanh, hoặc Xenova/whisper-base ở chế độ Kỹ hơn từ Hugging Face. Âm thanh và văn bản ở trên máy. Cache mô hình tùy trình duyệt. Nội dung bài giảng nằm trong bộ nhớ của tab, tải bản ghi và tài liệu Word để lưu. Ghi âm dùng micro, bao gồm khi người dùng nghe giảng qua loa ngoài.
  
-Nhận diện mặc định bằng tiếng Anh. Worker nhận audio mono 16 kHz, chia đoạn gần 2 phút theo khoảng lặng rồi chạy Whisper với cửa sổ chồng lấn. Bản chép lời hiển thị theo thứ tự nói. Tên riêng, thuật ngữ và đoạn nhiễu cần đối chiếu khi dùng để học. Bài dài có thể cần nhiều RAM do giải mã toàn bộ audio đầu vào. Có thể chia file thành các phần ngắn hơn.
+Nhận diện mặc định bằng tiếng Anh. Worker nhận audio mono 16 kHz, chép file theo từng đoạn tối đa 30 giây và ưu tiên ngắt ở chỗ âm lượng thấp. Nếu một cụm từ lặp bất thường, ứng dụng nghe lại đoạn đó theo từng phần ngắn hơn. Những chuỗi vẫn lặp với tốc độ khó phù hợp với lời nói được đánh dấu [không nghe rõ]. Bản chép lời hiển thị theo thứ tự nói. Tên riêng, thuật ngữ và đoạn nhiễu cần đối chiếu khi dùng để học. Bài dài có thể cần nhiều RAM do giải mã toàn bộ audio đầu vào. Có thể chia file thành các phần ngắn hơn.
 
 ## Tốc độ
 Chế độ Nhanh dùng mô hình Tiny lượng tử hóa, đổi lại độ chính xác có thể giảm. Mô hình được giữ trong worker sau khi hoàn tất để tái sử dụng cho file tiếp theo. Hủy xử lý giải phóng worker ngay. Đổi chế độ có thể cần tải mô hình khác. Thời gian chuẩn bị mô hình và xử lý audio được hiển thị riêng. Tốc độ thực tế phụ thuộc thiết bị và âm thanh.
