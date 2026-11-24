@@ -18,8 +18,10 @@ jobs:
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
+      - name: Prepare audio decoder
+        run: sh scripts/prepare-decoder.sh
       - name: Bundle downloadable source
-        run: zip -q -r lectureleaf-source.zip README.md .github dist -x dist/lectureleaf-source.zip && mv lectureleaf-source.zip dist/
+        run: zip -q -r lectureleaf-source.zip README.md .github scripts dist -x dist/lectureleaf-source.zip && mv lectureleaf-source.zip dist/
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with:

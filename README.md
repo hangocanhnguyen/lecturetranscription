@@ -2,7 +2,7 @@
 Ứng dụng web tĩnh ghi âm bài giảng bằng micro hoặc đọc audio từ file video/audio, chép lại lời nói bằng Whisper Tiny (mặc định) hoặc Base đa ngôn ngữ và tải bản chép lời dưới dạng Word (.docx). Khi ghi âm, Whisper Tiny hiển thị phụ đề tiếng Anh ngay trong tab và cập nhật cụm từ khi có thêm âm thanh. Sau khi dừng, người dùng có thể lưu bản ghi, tải phụ đề thành file Word hoặc chép lại toàn bộ bản ghi. Phụ đề đầu tiên cần đợi mô hình tải xong. Độ trễ phụ thuộc thiết bị.
 
 ## Dùng trên máy
-Chạy `python3 -m http.server 8000 --directory dist` từ thư mục dự án. Mở http://localhost:8000. Micro cần localhost hoặc HTTPS. Thử Chrome/Edge desktop. File được giải mã bằng codec trình duyệt hỗ trợ. Nếu MOV/MP4 không đọc được, chuyển audio thành MP3/WAV.
+Từ bản clone, chạy `sh scripts/prepare-decoder.sh` để tải bộ giải mã FFmpeg. Chạy `python3 -m http.server 8000 --directory dist` từ thư mục dự án. Mở http://localhost:8000. Micro cần localhost hoặc HTTPS. Thử Chrome/Edge desktop. Khi chọn video, ứng dụng tách rãnh tiếng đầu tiên có tín hiệu và giải mã được ngay trên thiết bị bằng FFmpeg (WebAssembly). File âm thanh dùng bộ giải mã trình duyệt và thử FFmpeg nếu cần. File cần có rãnh tiếng giải mã được và đủ bộ nhớ trên thiết bị.
 
 ## GitHub Pages
 Giải nén rồi đẩy toàn bộ nội dung vào nhánh main của repo GitHub. Trong Settings → Pages → Build and deployment, chọn GitHub Actions. Chạy workflow “Publish Lectureleaf” trong tab Actions hoặc push thay đổi lên main. Workflow xuất bản thư mục dist. Mọi đường dẫn asset đều tương đối. Có thể dùng bất kỳ static host HTTPS nào.

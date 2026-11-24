@@ -1,9 +1,12 @@
+import {readMedia} from './media-audio.mjs';
 import {createDocx} from './docx.mjs';
 import {startCaptions} from './live-captions.mjs';
 const $=id=>document.getElementById(id);
 for(let i=0;i<52;i++){const bar=document.createElement('i');bar.style.height=(8+Math.abs(Math.sin(i*.38)*Math.cos(i*.15))*(35+85*Math.sin(i*Math.PI/52)))+'px';$('wave').append(bar)}
 const stamp=t=>[Math.floor(t/60),Math.floor(t%60)].map(x=>String(x).padStart(2,'0')).join(':');
 let media=null,url='',rec=null,timer,worker=null,busy=false,job=0;
+let reading = null;
+let previewUrl = '';
 function lock(locked){busy=locked;for(const id of ['micMode','fileMode','file','record','speed'])$(id).disabled=locked;$('generate').disabled=locked||!media}
 function mode(mic){$('micMode').setAttribute('aria-pressed',mic);$('fileMode').setAttribute('aria-pressed',!mic);$('micBox').hidden=!mic;$('fileBox').hidden=mic}
 $('micMode').onclick=()=>mode(true);$('fileMode').onclick=()=>mode(false);
@@ -62,6 +65,7 @@ async function finishCaptions(session) {
 }
 function select(blob,name,recorded){
  if (!recorded) clearCaptions();
+ if(previewUrl){URL.revokeObjectURL(previewUrl);previewUrl=''}
  if(url)URL.revokeObjectURL(url);
  media=blob;url=URL.createObjectURL(blob);$('audio').src=url;$('filename').textContent=name;$('source').hidden=false;
  $('backup').href=url;$('backup').download=name;$('backup').hidden=!recorded;$('status').textContent='';$('results').hidden=true;$('transcript').replaceChildren();lock(false);
@@ -86,17 +90,24 @@ $('record').onclick=async()=>{
  }catch(e){stream?.getTracks().forEach(t=>t.stop());lock(false);$('status').textContent='Không mở được micro. Kiểm tra quyền micro trong trình duyệt hoặc chọn file. '+e.message}
 };
 function finish(terminate=false){if(terminate){worker?.terminate();worker=null;}$('cancel').hidden=true;lock(false)}
-$('cancel').onclick=()=>{job++;finish(true);$('status').textContent='Đã hủy. Bạn có thể xử lý lại file này.'};
+$('cancel').onclick=()=>{job++;reading?.abort();finish(true);$('status').textContent='Đã hủy. Bạn có thể xử lý lại file này.'};
 $('generate').onclick=async()=>{
  if(!media||busy)return;
  clearCaptions();
  $('results').hidden=true;
  const id=++job;lock(true);$('cancel').hidden=false;$('status').textContent='Đang đọc âm thanh…';
- let context;
+ const controller = new AbortController();
+ reading = controller;
  try{
- context=new AudioContext({sampleRate:16000});const buf=await context.decodeAudioData(await media.arrayBuffer());
+ const {samples, preview} = await readMedia(media, controller.signal, () => {
+  $('status').textContent = 'Đang tách rãnh âm thanh trên thiết bị…';
+ });
  if(id!==job)return;
- const samples=new Float32Array(buf.length);for(let ch=0;ch<buf.numberOfChannels;ch++){const channel=buf.getChannelData(ch);for(let i=0;i<samples.length;i++)samples[i]+=channel[i]/buf.numberOfChannels}
+ if(preview){
+  if(previewUrl) URL.revokeObjectURL(previewUrl);
+  previewUrl = URL.createObjectURL(preview);
+  $('audio').src = previewUrl;
+ }
  if(!samples.some(v=>Math.abs(v)>.0001))throw Error('File không có tín hiệu âm thanh.');
  worker ??= new Worker(new URL('./asr.js',import.meta.url),{type:'module'});$('status').textContent='Đang khởi động Whisper. Lần đầu có thể mất vài phút…';
  worker.onerror=e=>{if(id!==job)return;$('status').textContent='Không tải được bộ xử lý. '+e.message;finish(true)};
@@ -116,8 +127,8 @@ $('generate').onclick=async()=>{
   if (data.uncertain) $('status').textContent += ' Chỗ ghi [không nghe rõ] cần nghe lại bản gốc.';
  };
  worker.postMessage({samples,speed:$('speed').value},[samples.buffer]);
- }catch(e){if(id===job){finish();$('status').textContent='Không đọc được âm thanh. Nếu codec không được hỗ trợ, hãy thử MP3 hoặc WAV. '+e.message}}
- finally{if(context)await context.close().catch(()=>{})}
+ }catch(e){if(id===job){finish();$('status').textContent=e.message || 'Không đọc được âm thanh.'}}
+ finally{if(reading===controller)reading=null}
 };
 function transcriptParagraphs() {
  return Array.from($('transcript').children, paragraph => paragraph.textContent);
